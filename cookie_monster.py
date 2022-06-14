@@ -32,7 +32,7 @@ elif len(directory_is_filtered) > 3:
 import requests
 
 url_is = directory_is[3]
-curl_url = f'http://{url_is}'
+curl_url = f'https://{url_is}'
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
