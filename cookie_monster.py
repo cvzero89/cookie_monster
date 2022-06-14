@@ -15,19 +15,28 @@ import re
 ## - Getting domain name and paths for later use.
 directory = os.getcwd()
 directory_is = directory.split('/')
+directory_is_filtered = list(filter(None, directory_is))
 
-if len(directory_is) < 2:
+if len(directory_is_filtered) <= 2:
 	print(f'This script cannot be run on the user directory or lower. Current path is {directory}\nBye!')
 	exit()
+elif len(directory_is_filtered) > 3:
+	move_backwards = ''
+	directory_size = len(directory_is_filtered) - 3
+	for size in range(directory_size):
+		move_backwards = move_backwards + '../'
+	print(f'Moving to directory root')
+	os.chdir(move_backwards)
+	directory = os.getcwd()
 
 import requests
-add_https = 'https://'
+
 url_is = directory_is[3]
-curl_url = add_https + url_is
+curl_url = f'http://{url_is}'
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
-		curl_site = requests.get(curl_url, timeout=30)
+		curl_site = requests.get(curl_url, timeout=30, allow_redirects=False)
 		curl_site.raise_for_status()
 		headers = curl_site.headers
 		return headers
