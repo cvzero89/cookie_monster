@@ -3,26 +3,40 @@ If Varnish is bypassed toggles plugin and checks header response searching for c
 
 This tool is used when sites are using PHPSESSID (generic cookie) on the HTTP headers, it will:
 
-Check for cache-control.
-Get a list of active plugins, flagging them if PHPSESSID|session_start|start_session|$cookie|setCookie' is found.
-Toggle them one by one cURLing searching for cookies.
-If Varnish starts working it will revert all disabled plugins back to active.
+-Check for cache-control. 
+
+-Get a list of active plugins, flagging them if PHPSESSID|session_start|start_session|$cookie|setCookie' is found.
+
+-Toggle them one by one cURLing searching for cookies.
+
+-If Varnish starts working it will revert all disabled plugins back to active.
 
 You should still know the “normal” process/logic to testing the cache, this is a tool to make that process faster.
-Usage:
-Get a database backup: wp db export ~/backup`date +"%m-%d-%Y-%T"`.sql (ALWAYS)
-Copy the repository: git clone https://github.com/cvzero89/cookie_monster.git
-Run: python3 cookie_monster/cookie_monster.py
 
-Possible issues:
-The script disables a required plugin for an add-on and breaks. Ex. plugin_1 is required by plugin_2 to work, the script toggles plugin_1.
-Cookie Monster says there are no cookies but your cURL shows them. This is a problem with redirects (I think), some sites will show cookies on 301 redirects but not on the final hop, why? I have no idea.
-The site takes longer than 1 minutes to load. The script cURL has a timeout of 60 seconds, it can be increased on the function curling_not_the_sport.
-Site is not public or behind HTTPauth.
-Python version is lower than 3.6 (Should not happen unless cx has a custom version).
-The plugin is must-use (there’s no easy way to toggle this, they would need to be removed from the mu-plugins folder).
+## Usage:
 
-Examples:
+-Get a database backup: wp db export ~/backup`date +"%m-%d-%Y-%T"`.sql (ALWAYS)
+
+-Copy the repository: git clone https://github.com/cvzero89/cookie_monster.git
+
+-Run: python3 cookie_monster/cookie_monster.py
+
+### Possible issues:
+
+-The script disables a required plugin for an add-on and breaks. Ex. plugin_1 is required by plugin_2 to work, the script toggles plugin_1.
+
+-Cookie Monster says there are no cookies but your cURL shows them. This is a problem with redirects (I think), some sites will show cookies on 301 redirects but not on the final hop, why? I have no idea.
+-The site takes longer than 1 minutes to load. 
+
+-The script cURL has a timeout of 60 seconds, it can be increased on the function curling_not_the_sport.
+
+-Site is not public or behind HTTPauth.
+
+-Python version is lower than 3.6 (Should not happen unless cx has a custom version).
+
+-The plugin is must-use (there’s no easy way to toggle this, they would need to be removed from the mu-plugins folder).
+
+## Examples:
 
 ```
 username@server:~/domain.com$ python3 cookie_monster/cookie_monster.py
