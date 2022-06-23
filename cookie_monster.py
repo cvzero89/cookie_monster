@@ -22,7 +22,9 @@ class color:
 
 import os
 import re
+import subprocess
 ## - Getting domain name and paths for later use.
+
 directory = os.getcwd()
 directory_is = directory.split('/')
 directory_is_filtered = list(filter(None, directory_is))
@@ -40,9 +42,21 @@ elif len(directory_is_filtered) > 3:
 	directory = os.getcwd()
 
 import requests
+warning_re = re.compile(r'\w?(Error|Warning:)\w?\(?\)?;?', re.IGNORECASE)
+## - Getting the siteurl:
+get_site_url = subprocess.Popen(['wp', 'option', 'get', 'siteurl', '--skip-themes', '--skip-plugins'], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
+url_is_error = get_site_url.communicate()[1].decode("utf-8").strip()
+if warning_re.search(url_is_error):
+	print(url_is_error)
+	print("SiteURL CLI failed, falling back to getting the domain name based on the domain directory")
+	url_is = directory_is[3]
+	curl_url = f'https://{url_is}'
+else:
+	get_site_url = subprocess.Popen(['wp', 'option', 'get', 'siteurl', '--skip-themes', '--skip-plugins'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+	url_is = get_site_url.communicate()[0].decode("utf-8").strip()
+	curl_url = url_is
 
-url_is = directory_is[3]
-curl_url = f'https://{url_is}'
+
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
@@ -99,7 +113,7 @@ def cookie_monster(headers, exclusion='custom'):
 					finding.remove(element)
 			if element not in exclusion_list:
 				## - Regex to match and replace random added strings if any:
-				pattern = r'_?[a-zA-Z0-9]*='
+				pattern = r'_?[0-9]*='
 				if element not in custom_cookies:
 					custom_cookies.append(re.sub(pattern, '', element))
 		if not custom_cookies:
@@ -121,7 +135,7 @@ def cookie_monster(headers, exclusion='custom'):
 					finding.remove(element)
 			if element not in exclusion_list:
 				## - Regex to match and replace random added strings if any:
-				pattern = r'_?[a-zA-Z0-9]*='
+				pattern = r'_?[0-9]*='
 				if element not in generic_cookies:
 					generic_cookies.append(re.sub(pattern, '', element))
 		generic_cookies_size = len(generic_cookies)
@@ -134,7 +148,7 @@ except KeyError:
 	pass
 
 ## - Regex for generic named cookies, it will append some common characters at the begginning and end.
-import subprocess
+
 generic_cookies_regex = re.compile(r"\w?(PHPSESSID|session_start|start_session|$cookie|setCookie)\w?\(?\)?;?", re.IGNORECASE)
 
 ## - Creating the Regex if 'custom' cookies are found:
@@ -242,7 +256,7 @@ elif flagged_plugins and not flagged_plugins_custom and not flagged_theme:
 
 ## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
 
-warning_re = re.compile(r'\w?(Error|Warning:)\w?\(?\)?;?', re.IGNORECASE)
+
 toggled_plugins = []
 def plugin_toggler(plugin):
 	exclude_toggle = ['woocommerce', 'elementor', 'jetpack', 'wp-mail-smtp', 'varnish-http-purge', 'dreamhost-panel-login']
@@ -267,7 +281,7 @@ def after_checker(curl_url, plugin, exclusion='generic'):
 	headers = curling_not_the_sport(curl_url)
 	try:
 		generic_cookies_size_after = cookie_monster(headers, exclusion='generic')
-		if generic_cookies_size_start > generic_cookies_size_after:
+		if generic_cookies_size_start > generic_cookies_size_after and generic_cookies_size_after > 1:
 			print(f'{color.BOLD}Number of cookies changed, adding {plugin} to the culprit list{color.END}')
 			culprit_plugin.append(plugin)
 		elif generic_cookies_size_start == generic_cookies_size_after:
@@ -287,6 +301,7 @@ if flagged_plugins_custom:
 	print('Plugins with custom cookies will be toggled, we\'ve already identified that they conflict with Varnish')
 	for plugin in flagged_plugins_custom:
 		try:
+			headers = curling_not_the_sport(curl_url)
 			generic_cookies_size_start = cookie_monster(headers, exclusion='generic')
 		except KeyError:
 			pass
@@ -299,6 +314,7 @@ else:
 
 for plugin in flagged_plugins:
 	try:
+		headers = curling_not_the_sport(curl_url)
 		generic_cookies_size_start = cookie_monster(headers, exclusion='generic')
 	except KeyError:
 		pass
@@ -339,3 +355,4 @@ if not culprit_plugin:
 else:
 	culprit_plugin_string = ', '.join(culprit_plugin)
 	print(f'{color.BOLD}Plugin(s) bypassing cache: {culprit_plugin_string}.{color.END}')
+
