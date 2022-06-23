@@ -1,3 +1,13 @@
+print("""               _  _
+             _/0\\/ \\_
+    .-.   .-` \\_/\\0/ '-.
+   /:::\\ / ,_________,  \\
+  /\\:::/ \\  '. (:::/  `'-;
+  \\ `-'`\\ '._ `"'"'\\__    \\
+   `'-.  \\   `)-=-=(  `,   |
+       \\  `-"`      `"-`   /\n          Me want cookie!""")
+
+
 class color:
    PURPLE = '\033[95m'
    CYAN = '\033[96m'
@@ -36,7 +46,7 @@ curl_url = f'https://{url_is}'
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
-		curl_site = requests.get(curl_url, timeout=30, allow_redirects=False)
+		curl_site = requests.get(curl_url, timeout=60, allow_redirects=False)
 		curl_site.raise_for_status()
 		headers = curl_site.headers
 		return headers
@@ -329,4 +339,3 @@ if not culprit_plugin:
 else:
 	culprit_plugin_string = ', '.join(culprit_plugin)
 	print(f'{color.BOLD}Plugin(s) bypassing cache: {culprit_plugin_string}.{color.END}')
-
