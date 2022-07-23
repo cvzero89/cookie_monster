@@ -23,6 +23,15 @@ class color:
 import os
 import re
 import subprocess
+import argparse
+
+## - Skipping plugins?
+
+parser =  argparse.ArgumentParser(description='Checking cookies that bypass Varnish')
+parser.add_argument('--skip_plugins', help='Adding plugins to exclude')
+args = parser.parse_args()
+skip_plugins = args.skip_plugins
+
 ## - Getting domain name and paths for later use.
 
 directory = os.getcwd()
@@ -95,6 +104,8 @@ except KeyError:
 	print('No cookies found. Why are you running this?\nVarnish should run OK, bye!')
 	exit()	
 
+if skip_plugins:
+	print(f'Plugins to skip: {skip_plugins}')
 
 ## - Finding only custom cookies and filtering them if set to exclusion = 'custom', otherwise it will check the # of the cookies, used for sites setting more than 1 cookie at the time.
 exclusion = 'custom'
@@ -166,6 +177,11 @@ get_active_plugins.stdout.close()
 
 ## - Not needed to check ALL plugins:
 excluded_plugins = ['varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
+if not skip_plugins:
+	pass
+else:
+	for plugin in skip_plugins.split(','):
+		excluded_plugins.append(plugin)
 flagged_plugins = []
 flagged_plugins_custom = []
 
