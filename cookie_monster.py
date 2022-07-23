@@ -28,7 +28,7 @@ import argparse
 ## - Skipping plugins?
 
 parser =  argparse.ArgumentParser(description='Checking cookies that bypass Varnish')
-parser.add_argument('--skip_plugins', help='Adding plugins to exclude')
+parser.add_argument('--skip_plugins', help='Adding plugins to exclude. Ex. python3 cookie_monster.py --skip-plugins plugin1,plugin2')
 args = parser.parse_args()
 skip_plugins = args.skip_plugins
 
@@ -65,7 +65,10 @@ else:
 	url_is = get_site_url.communicate()[0].decode("utf-8").strip()
 	curl_url = url_is
 
-
+toggled_plugins = []
+def go_back():
+	if toggled_plugins:
+		print(f'cURL failed after plugins had been toggled, cannot reactive plugins automatically. Run:\nwp plugin toggle {",".join(toggled_plugins)}\nYou can use the flag --skip_plugins to skip this (Run python3 cookie_monster.py --h for more info).')
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
@@ -74,17 +77,21 @@ def curling_not_the_sport(curl_url):
 		headers = curl_site.headers
 		return headers
 	except requests.exceptions.HTTPError as errh:
-	    print (f'HTTP error, cURL to {url_is} failed. Error below \n  {errh}')
-	    exit()
+		print(f'HTTP error, cURL to {url_is} failed. Error below \n  {errh}')
+		go_back()
+		exit()
 	except requests.exceptions.ConnectionError as errc:
-	    print (f'Error connecting, cURL to {url_is} failed. Error below \n  {errc}')
-	    exit()
+		print(f'Error connecting, cURL to {url_is} failed. Error below \n  {errc}')
+		go_back()
+		exit()
 	except requests.exceptions.Timeout as errt:
-	    print (f'Timeout Error, cURL to {url_is} failed. Error below \n  {errt}')
-	    exit()
+		print(f'Timeout Error, cURL to {url_is} failed. Error below \n  {errt}')
+		go_back()
+		exit()
 	except requests.exceptions.RequestException as err:
-	    print (f'Oops: Something unidentified happened, cURL to {url_is} failed. Error below \n  {err}')
-	    exit()
+		print(f'Oops: Something unidentified happened, cURL to {url_is} failed. Error below \n  {err}')
+		go_back()
+		exit()
 headers = curling_not_the_sport(curl_url)
 
 ## - Investigating the headers info:
@@ -273,7 +280,7 @@ elif flagged_plugins and not flagged_plugins_custom and not flagged_theme:
 ## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
 
 
-toggled_plugins = []
+
 def plugin_toggler(plugin):
 	exclude_toggle = ['woocommerce', 'elementor', 'jetpack', 'wp-mail-smtp', 'varnish-http-purge', 'dreamhost-panel-login']
 	if plugin not in exclude_toggle:
