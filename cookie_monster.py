@@ -1,11 +1,19 @@
-print("""               _  _
-             _/0\\/ \\_
-    .-.   .-` \\_/\\0/ '-.
-   /:::\\ / ,_________,  \\
-  /\\:::/ \\  '. (:::/  `'-;
-  \\ `-'`\\ '._ `"'"'\\__    \\
-   `'-.  \\   `)-=-=(  `,   |
-       \\  `-"`      `"-`   /\n          Me want cookie!""")
+print("""              .---. .---. 
+             :     : o   :    me want cookie!
+         _..-:   o :     :-.._    /
+     .-''  '  `---' `---' "   ``-.    
+   .'   "   '  "  .    "  . '  "  `.  
+  :   '.---.,,.,...,.,.,.,..---.  ' ;
+  `. " `.                     .' " .'
+   `.  '`.                   .' ' .'
+    `.    `-._           _.-' "  .'  .----.
+      `. "    '"--...--"'  . ' .'  .'  o   `.
+      .'`-._'    " .     " _.-'`. :       o  :
+    .'      ```--.....--'''    ' `:_ o       :
+  .'    "     '         "     "   ; `.;";";";'
+ ;         '       "       '     . ; .' ; ; ;
+;     '         '       '   "    .'      .-'
+'  "     "   '      "           "    _.-'""")
 
 
 class color:
@@ -25,23 +33,23 @@ import re
 import subprocess
 import argparse
 
-## - Skipping plugins?
-
+## - Skipping plugins? Will need to be added as plugin1,plugin2 - no space with comma.
 parser =  argparse.ArgumentParser(description='Checking cookies that bypass Varnish')
 parser.add_argument('--skip_plugins', help='Adding plugins to exclude. Ex. python3 cookie_monster.py --skip-plugins plugin1,plugin2')
 args = parser.parse_args()
 skip_plugins = args.skip_plugins
 
-## - Getting domain name and paths for later use.
+## --
 
+## - Getting domain name and paths for later use.
 directory = os.getcwd()
 directory_is = directory.split('/')
 directory_is_filtered = list(filter(None, directory_is))
 
-if len(directory_is_filtered) <= 2:
+if len(directory_is_filtered) <= 2: # - Will not run on user directory.
 	print(f'This script cannot be run on the user directory or lower. Current path is {directory}\nBye!')
 	exit()
-elif len(directory_is_filtered) > 3:
+elif len(directory_is_filtered) > 3: # - If executed on anything other than the domain directory.
 	move_backwards = ''
 	directory_size = len(directory_is_filtered) - 3
 	for size in range(directory_size):
@@ -63,12 +71,34 @@ if warning_re.search(url_is_error):
 else:
 	get_site_url = subprocess.Popen(['wp', 'option', 'get', 'siteurl', '--skip-themes', '--skip-plugins'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 	url_is = get_site_url.communicate()[0].decode("utf-8").strip()
-	curl_url = url_is
-
+	curl_url = url_is	
+## ----
+	
+## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
+def plugin_toggler(plugin):
+	exclude_toggle = ['woocommerce', 'elementor', 'jetpack', 'wp-mail-smtp', 'varnish-http-purge', 'dreamhost-panel-login']
+	if plugin not in exclude_toggle:
+		print(f'Toggling {plugin}.')
+		toggle_plugin = subprocess.Popen(['wp', 'plugin', 'toggle', plugin, '--skip-themes', '--skip-plugins'], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
+		try:
+			toggle_message = toggle_plugin.communicate()[1].decode("utf-8").strip()
+			if warning_re.search(toggle_message):
+				print(f'{color.BOLD}There\'s an error after toggling {plugin}. This might be a required plugin by an add-on, you will need to check manually.{color.END}')
+			toggle_plugin.stdout.close()
+		except Exception:
+			pass
+	else:
+		pass
+	
 toggled_plugins = []
+
+## - To allow it to fail gracefully. Any plugin that causes a 4xx/5xx will trigger the request Exception and activate anything that had been toggled.
 def go_back():
 	if toggled_plugins:
-		print(f'cURL failed after plugins had been toggled, cannot reactive plugins automatically. Run:\nwp plugin toggle {",".join(toggled_plugins)}\nYou can use the flag --skip_plugins to skip this (Run python3 cookie_monster.py --h for more info).')
+		print(f'cURL failed after plugins had been toggled, Re-activating. \nYou can use the flag --skip_plugins to skip this (Run python3 cookie_monster.py --h for more info).')
+		for plugin in toggled_plugins:
+			plugin_toggler(plugin)
+
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url):
 	try:
@@ -166,7 +196,6 @@ except KeyError:
 	pass
 
 ## - Regex for generic named cookies, it will append some common characters at the begginning and end.
-
 generic_cookies_regex = re.compile(r"\w?(PHPSESSID|session_start|start_session|$cookie|setCookie)\w?\(?\)?;?", re.IGNORECASE)
 
 ## - Creating the Regex if 'custom' cookies are found:
@@ -184,11 +213,12 @@ get_active_plugins.stdout.close()
 
 ## - Not needed to check ALL plugins:
 excluded_plugins = ['varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
-if not skip_plugins:
+if not skip_plugins: # - Check if user wants to exclude anything else.
 	pass
 else:
 	for plugin in skip_plugins.split(','):
 		excluded_plugins.append(plugin)
+
 flagged_plugins = []
 flagged_plugins_custom = []
 
@@ -229,13 +259,11 @@ for plugin in active_plugins.split():
 					pass
 
 ## - Getting active theme and parent (if any):
-
 get_active_theme = subprocess.Popen(['wp', 'theme', 'list', '--status=active, parent', '--field=name', '--skip-themes', '--skip-plugins'], stdout=subprocess.PIPE)
 active_theme = get_active_theme.communicate()[0].decode('utf-8').strip()
 get_active_theme.stdout.close()
 
 ## - Searching PHP files on active theme and parent (if any):
-
 flagged_theme = []
 for theme in active_theme.split():
 	directory_theme = f'{directory}/wp-content/themes/{theme}'
@@ -267,7 +295,6 @@ for theme in active_theme.split():
 				pass
 
 ## - Based on the PHP results it will show only what we need:
-
 if flagged_plugins and flagged_plugins_custom and flagged_theme:
 	print(f'{color.BOLD}Flagged plugins: {", ".join(flagged_plugins)} - {", ".join(flagged_plugins_custom)} - and theme: {", ".join(flagged_theme)}{color.END}')	
 elif flagged_plugins and flagged_plugins_custom and not flagged_theme:
@@ -277,29 +304,10 @@ elif flagged_plugins and not flagged_plugins_custom and flagged_theme:
 elif flagged_plugins and not flagged_plugins_custom and not flagged_theme:
 	print(f'{color.BOLD}Flagged plugins: {", ".join(flagged_plugins)}{color.END}')
 
-## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
-
-
-
-def plugin_toggler(plugin):
-	exclude_toggle = ['woocommerce', 'elementor', 'jetpack', 'wp-mail-smtp', 'varnish-http-purge', 'dreamhost-panel-login']
-	if plugin not in exclude_toggle:
-		print(f'Toggling {plugin}.')
-		toggle_plugin = subprocess.Popen(['wp', 'plugin', 'toggle', plugin, '--skip-themes', '--skip-plugins'], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
-		try:
-			toggle_message = toggle_plugin.communicate()[1].decode("utf-8").strip()
-			if warning_re.search(toggle_message):
-				print(f'{color.BOLD}There\'s an error after toggling {plugin}. This might be a required plugin by an add-on, you will need to check manually.{color.END}')
-			toggle_plugin.stdout.close()
-		except Exception:
-			pass
-	else:
-		pass
 
 culprit_plugin = []
 
 ## - Checking headers, # of cookies and re-enabling all plugins if Varnish responds with a HIT:
-
 def after_checker(curl_url, plugin, exclusion='generic'):
 	headers = curling_not_the_sport(curl_url)
 	try:
@@ -320,6 +328,7 @@ def after_checker(curl_url, plugin, exclusion='generic'):
 		print(f'{color.BOLD}Plugin(s) bypassing cache: {culprit_plugin_string}.{color.END}')
 		exit()
 
+# - Toggling plugins with custom cookies first.
 if flagged_plugins_custom:
 	print('Plugins with custom cookies will be toggled, we\'ve already identified that they conflict with Varnish')
 	for plugin in flagged_plugins_custom:
@@ -334,7 +343,7 @@ if flagged_plugins_custom:
 else:
 	pass
 
-
+# - Toggling plugins with generic cookies second.
 for plugin in flagged_plugins:
 	try:
 		headers = curling_not_the_sport(curl_url)
@@ -345,13 +354,14 @@ for plugin in flagged_plugins:
 	toggled_plugins.append(plugin)
 	after_checker(curl_url, plugin, exclusion='generic')
 
+# - Toggling the theme if we have not found anything so far.
 if flagged_theme:
 	import time
 	print('\nSwitching to a default theme:')
 	get_active_theme = subprocess.Popen(['wp', 'theme', 'list', '--status=active', '--field=name', '--skip-themes', '--skip-plugins'], stdout=subprocess.PIPE)
 	active_theme = get_active_theme.communicate()[0].decode('utf-8').strip()
 	time.sleep(2)
-	## Making sure default theme is installed:
+	# - Making sure a default theme is installed:
 	install_theme = subprocess.Popen(['wp', 'theme', 'install', 'twentytwentytwo', '--skip-themes', '--skip-plugins'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 	time.sleep(2)
 	change_theme = subprocess.Popen(['wp', 'theme', 'activate', 'twentytwentytwo', '--skip-themes', '--skip-plugins'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -368,6 +378,7 @@ if flagged_theme:
 else:
 	pass
 
+## - Last step, going back if nothing has been found.
 print('\nRe-enabling all plugins after checks.')
 
 for plugin in toggled_plugins:
