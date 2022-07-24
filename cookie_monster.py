@@ -146,7 +146,7 @@ if skip_plugins:
 
 ## - Not needed to check ALL plugins:
 excluded_plugins = ['woocommerce', 'elementor', 'varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
-print(f'Plugins excluded by default: {", ".join(excluded_plugins)}'
+print(f'Plugins excluded by default: {", ".join(excluded_plugins)}')
 if not skip_plugins: # - Check if user wants to exclude anything else.
 	pass
 else:
