@@ -76,7 +76,7 @@ else:
 	
 ## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
 def plugin_toggler(plugin):
-	exclude_toggle = ['woocommerce', 'elementor', 'jetpack', 'wp-mail-smtp', 'varnish-http-purge', 'dreamhost-panel-login']
+	exclude_toggle = ['woocommerce', 'elementor', 'varnish-http-purge', 'dreamhost-panel-login']
 	if plugin not in exclude_toggle:
 		print(f'Toggling {plugin}.')
 		toggle_plugin = subprocess.Popen(['wp', 'plugin', 'toggle', plugin, '--skip-themes', '--skip-plugins'], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
@@ -212,7 +212,7 @@ active_plugins = get_active_plugins.communicate()[0].decode('utf-8').strip()
 get_active_plugins.stdout.close()
 
 ## - Not needed to check ALL plugins:
-excluded_plugins = ['varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
+excluded_plugins = ['woocommerce', 'elementor', 'varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
 if not skip_plugins: # - Check if user wants to exclude anything else.
 	pass
 else:
