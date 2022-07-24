@@ -144,6 +144,15 @@ except KeyError:
 if skip_plugins:
 	print(f'Plugins to skip: {skip_plugins}')
 
+## - Not needed to check ALL plugins:
+excluded_plugins = ['woocommerce', 'elementor', 'varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
+print(f'Plugins excluded by default: {", ".join(excluded_plugins)}'
+if not skip_plugins: # - Check if user wants to exclude anything else.
+	pass
+else:
+	for plugin in skip_plugins.split(','):
+		excluded_plugins.append(plugin)	
+
 ## - Finding only custom cookies and filtering them if set to exclusion = 'custom', otherwise it will check the # of the cookies, used for sites setting more than 1 cookie at the time.
 exclusion = 'custom'
 def cookie_monster(headers, exclusion='custom'):
@@ -211,13 +220,6 @@ get_active_plugins = subprocess.Popen(['wp', 'plugin', 'list', '--status=active'
 active_plugins = get_active_plugins.communicate()[0].decode('utf-8').strip()
 get_active_plugins.stdout.close()
 
-## - Not needed to check ALL plugins:
-excluded_plugins = ['woocommerce', 'elementor', 'varnish-http-purge', 'dreamhost-panel-login'] ## - This list can be expanded.
-if not skip_plugins: # - Check if user wants to exclude anything else.
-	pass
-else:
-	for plugin in skip_plugins.split(','):
-		excluded_plugins.append(plugin)
 
 flagged_plugins = []
 flagged_plugins_custom = []
