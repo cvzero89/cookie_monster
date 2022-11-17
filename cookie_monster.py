@@ -36,8 +36,10 @@ import argparse
 ## - Skipping plugins? Will need to be added as plugin1,plugin2 - no space with comma.
 parser =  argparse.ArgumentParser(description='Checking cookies that bypass Varnish')
 parser.add_argument('--skip_plugins', help='Adding plugins to exclude. Ex. python3 cookie_monster.py --skip-plugins plugin1,plugin2')
+parser.add_argument('--url_mod', help='Specify the URL to cURL if anything other than the homepage is required. Ex. python3 cookie_monster.py --url_mod /new/url.')
 args = parser.parse_args()
 skip_plugins = args.skip_plugins
+url_mod = args.url_mod
 
 ## --
 
@@ -73,6 +75,16 @@ else:
 	url_is = get_site_url.communicate()[0].decode("utf-8").strip()
 	curl_url = url_is	
 ## ----
+
+if url_mod:
+	if url_mod.startswith('/'):
+		pass
+	else:
+		url_mod = f'/{url_mod}'
+	curl_url = curl_url + url_mod
+	print(f'Default home URL updated to cURL: {curl_url}')
+else:
+	print(f'URL to check: {curl_url}')
 	
 ## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish:
 def plugin_toggler(plugin):
