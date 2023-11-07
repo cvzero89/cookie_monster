@@ -1,15 +1,15 @@
 # cookie_monster
-If Varnish is bypassed toggles plugin and checks header response searching for cookies. 
+If Varnish/Nginx is bypassed toggles plugin and checks header response searching for cookies. 
 
-This tool is used when sites are using PHPSESSID (generic cookie) on the HTTP headers, it will:
+This tool is used when sites are using PHPSESSID|session_start|start_session|$cookie|setCookie (generic cookie) on the HTTP headers, it will:
 
 -Check for cache-control. 
 
--Get a list of active plugins, flagging them if PHPSESSID|session_start|start_session|$cookie|setCookie' is found.
+-Get a list of active plugins, flagging them if PHPSESSID|session_start|start_session|$cookie|setCookie is found.
 
 -Toggle them one by one cURLing searching for cookies.
 
--If Varnish starts working it will revert all disabled plugins back to active.
+-If all cookies are gone and Varnish/Nginx can return a HIT, it will revert all disabled plugins back to active.
 
 You should still know the “normal” process/logic to testing the cache, this is a tool to make that process faster.
 
