@@ -63,7 +63,6 @@ def folder_check(directory_is_filtered):
       directory_size = len(directory_is_filtered) - 3
       for size in range(directory_size):
          move_backwards = move_backwards + '../'
-#      print(f'Moving to directory root')
       os.chdir(move_backwards)
       directory = os.getcwd()
       return directory
@@ -106,7 +105,7 @@ def go_back(toggled_plugins):
 ## - Function to cURL to the site, used multiple times on the script.
 def curling_not_the_sport(curl_url, toggled_plugins):
    try:
-      curl_site = requests.get(curl_url, timeout=30, allow_redirects=False)
+      curl_site = requests.get(curl_url, timeout=30, allow_redirects=True)
       curl_site.raise_for_status()
       cookies = curl_site.cookies
       headers = curl_site.headers
@@ -167,7 +166,7 @@ def active_plugins_and_themes(mode):
     if mode == 'plugins':
         cmd = 'wp plugin list --status=active --field=name --skip-themes --skip-plugins'
     else:
-        cmd = 'wp theme list --status=active,parent --field=name --skip-themes --skip-plugins'
+        cmd = 'wp theme list --status=active --field=name --skip-themes --skip-plugins'
     stdout, stderr  = run_command(cmd)
     if warning_re.search(stderr) or stdout is None:
         print(f'Active plugins/themes cannot be listed.')
@@ -204,7 +203,6 @@ def file_searcher(active_plugins_names, excluded_plugins, directory, custom_cook
                                     if custom_cookies:
                                         matches_custom = custom_cookies_search.search(content)
                                         if matches_custom:
-    #                                        print(f'{item} matches at {matches_custom.group()}')
                                             if item in flagged_generic:
                                                 flagged_generic.remove(item)
                                                 flagged_custom.append(item)
@@ -216,7 +214,6 @@ def file_searcher(active_plugins_names, excluded_plugins, directory, custom_cook
                                     pass
                                 matches_generic = generic_search.search(content)
                                 if matches_generic:
-    #                                print(f'{item} matches at {matches_generic.group()}')
                                     if item not in flagged_generic and item not in flagged_custom:
                                         flagged_generic.append(item)
                         except Exception:
@@ -273,7 +270,7 @@ def main():
     ## - Investigating the headers info:
     try:
         headers['Cache-Control']
-        print('Cache-Control found. You might need to check the .htaccess.')
+        print(f'Cache-Control found. Review the headers: {headers["Cache-Control"]}')
     except KeyError:
         print('Cache-Control is not found.')
     try:
@@ -303,15 +300,16 @@ def main():
     active_plugins_names = active_plugins_and_themes('plugins')
     flagged_plugins, flagged_plugins_custom = file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, 'plugins')
     active_theme = active_plugins_and_themes('themes')
-    flagged_theme = file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, 'theme', active_theme)
+    flagged_theme_generic, flagged_theme_custom = file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, 'theme', active_theme)
 
     ## - Based on the PHP results it will show only what we need:
     flagged_both = flagged_plugins + flagged_plugins_custom
+    flagged_both_theme = flagged_theme_generic, flagged_theme_custom
     if flagged_both:
         print(f'{color.BOLD}Flagged plugins: {", ".join(flagged_both)}{color.END}')
-    if flagged_theme is not None and len(flagged_theme[0]) >0:
-        print(f'{color.BOLD}Flagged theme: {", ".join(flagged_theme[0])}{color.END}.')
-        print(flagged_theme)
+    if flagged_theme_generic is not None or flagged_theme_custom is not None:
+        flagged_theme_strings = [item for sublist in flagged_both_theme for item in sublist if item]
+        print(f'{color.BOLD}Flagged theme: {", ".join(flagged_theme_strings)}{color.END}.')
 
     toggled_plugins = []
     culprit_plugin = []
@@ -340,8 +338,33 @@ def main():
                 after_generic = after_checker(curl_url, plugin, culprit_plugin, generic_cookies_size_start, toggled_plugins)
                 if after_generic == True:
                     break
-    else:
-        print('No generic cookies found!')
+    
+    generic_cookies_size = cookie_monster(cookie_jar, exclusion='generic')
+    if flagged_theme_generic and generic_cookies_size != 0:
+        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
+        generic_cookies_size_start = cookie_monster(cookie_jar, exclusion='generic')
+        print('\nSwitching to a default theme:')
+        run_command('wp theme install twentytwentyfour --skip-themes --skip-plugins')
+        run_command('wp theme activate twentytwentyfour --skip-themes --skip-plugins')
+        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
+        generic_cookies_size_after = cookie_monster(cookie_jar, exclusion='generic')
+        if generic_cookies_size_start > generic_cookies_size_after and generic_cookies_size_after >= 1:
+            print(f'{color.BOLD}Number of cookies changed, adding {active_theme} to the culprit list{color.END}')
+            culprit_plugin.append(active_theme)
+            run_command(f'wp theme activate {active_theme}')
+        elif generic_cookies_size_after == 0:
+            print(f'{color.BOLD}Could not find cookies after disabling {active_theme}.{color.END}')
+            culprit_plugin.append(active_theme)
+            run_command(f'wp theme activate {active_theme}')
+    elif flagged_theme_custom:
+        print('\nSwitching to a default theme:')
+        run_command('wp theme install twentytwentyfour --skip-themes --skip-plugins')
+        run_command('wp theme activate twentytwentyfour --skip-themes --skip-plugins')
+        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
+        if not cookie_jar:
+            culprit_plugin.append(active_theme)
+            run_command(f'wp theme activate {active_theme}')
+            print(f'{color.BOLD}Could not find cookies after disabling {active_theme}.{color.END}')
 
 
     ## - Last step, going back if nothing has been found.
@@ -353,7 +376,8 @@ def main():
     if not culprit_plugin:
         print(f'{color.BOLD}Could not find anything. Have you checked must-use plugins?{color.END}')   
     else:
-        print(f'{color.BOLD}Plugin(s) bypassing cache: {", ".join(culprit_plugin)}.{color.END}')
+        print(f'{color.BOLD}Plugin(s)/Theme bypassing cache: {", ".join(culprit_plugin)}.{color.END}')
 
 if __name__ == '__main__':
    main()
+   
