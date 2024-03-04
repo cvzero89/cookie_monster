@@ -1,0 +1,38 @@
+excluded_list: ['woocommerce', 'elementor', 'nginx-helper', 'dreamhost-panel-login', 'redis-cache']
+theme: twentytwentyfour
+curl:
+    timeout: 30
+    follow_redirects: True
+logger:
+    version: 1
+    disable_existing_loggers: False
+    formatters:
+        simple:
+            format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        detailed:
+            format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s - [%(filename)s:%(lineno)d]"
+    handlers:
+        file:
+            class: logging.FileHandler
+            level: INFO
+            formatter: detailed
+            filename: ./src/cookieCrumbs.log
+            mode: a
+        classesCookieFileHandler:
+            class: logging.FileHandler
+            level: DEBUG
+            formatter: detailed
+            filename: ./src/monster-debug.log
+            mode: a
+    loggers:
+        cookieMonster:
+            level: INFO
+            handlers: [file]
+            propagate: no
+        cookieDough:
+            level: DEBUG
+            handlers: [classesCookieFileHandler]
+            propagate: no
+    root:
+        level: DEBUG
+        handlers: [file]
