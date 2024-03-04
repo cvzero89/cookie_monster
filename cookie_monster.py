@@ -1,3 +1,11 @@
+import re
+import yaml
+import argparse
+import logging.config
+import logging
+from src.CookieDough import CookieMonster, color, Site, after_checker, run_command, file_searcher, excluded_print
+import sys
+
 print("""              .---. .---. 
              :     : o   :    me want cookie!
          _..-:   o :     :-.._    /
@@ -14,370 +22,178 @@ print("""              .---. .---.
  ;         '       "       '     . ; .' ; ; ;
 ;     '         '       '   "    .'      .-'
 '  "     "   '      "           "    _.-'""")
-
-class color:
-   PURPLE = '\033[95m'
-   CYAN = '\033[96m'
-   DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
-   GREEN = '\033[92m'
-   YELLOW = '\033[93m'
-   RED = '\033[91m'
-   BOLD = '\033[1m'
-   UNDERLINE = '\033[4m'
-   END = '\033[0m'
-
-import os
-import re
-import subprocess
-import requests
-import argparse
-import sys
-
-class Assets():
-    def __init__(self, type, status, flagged, culprit=False):
-        self.type = type
-        self.status = status
-        self.flagged = flagged
-        self.culprit = culprit
-    
-    def file_searcher(self):
-        ...
-
-class Site():
-    def __init__(self, siteurl, plugins, theme):
-        self.siteurl = siteurl
-        self.plugins = plugins
-        self.theme = theme
-    
-    def get_siteurl(self):
-        ...
-
-def folder_check(directory_is_filtered):
-
-   if len(directory_is_filtered) <= 2:
-      print(f'This script cannot be run on the user directory or lower. Current path is {directory}\nBye!')
-      exit()
-   elif len(directory_is_filtered) > 3:
-      move_backwards = ''
-      directory_size = len(directory_is_filtered) - 3
-      for size in range(directory_size):
-         move_backwards = move_backwards + '../'
-      os.chdir(move_backwards)
-      directory = os.getcwd()
-      return directory
-
-warning_re = re.compile(r'\w?(Error|Warning:)\w?\(?\)?;?', re.IGNORECASE)
-
-def run_command(cmd):
-    try:
-        process = subprocess.run(cmd.split(), capture_output=True, text=True, check=True, encoding='utf-8')
-        return process.stdout.strip(), process.stderr.strip()
-    except subprocess.CalledProcessError as e:
-       print(f'WP-CLI command failed with error:\n{e}')
-       return None, 'None'
-
-def get_url(warning_re, directory_is, url_mod):
-    cmd = 'wp option get siteurl --skip-themes --skip-plugins'
-    stdout, stderr = run_command(cmd)
-    if warning_re.search(stderr) or stdout is None:
-        print('SiteURL CLI failed, falling back to getting the domain name based on the domain directory')
-        curl_url = f'https://{directory_is[3]}'
-    else:
-        curl_url = stdout
-    if url_mod:
-        if url_mod.startswith('/'):
-            url_mod = url_mod
-        else:
-            url_mod = f'/{url_mod}'
-        curl_url = curl_url + url_mod
-        return curl_url
-    else:
-        return curl_url
-    
-## - To allow it to fail gracefully. Any plugin that causes a 4xx/5xx will trigger the request Exception and activate anything that had been toggled.
-def go_back(toggled_plugins):
-	if toggled_plugins:
-		print(f'cURL failed after plugins had been toggled, Re-activating. \nYou can use the flag --skip_plugins to skip this (Run python3 cookie_monster.py --h for more info).')
-		for plugin in toggled_plugins:
-			plugin_toggler(plugin)
-
-## - Function to cURL to the site, used multiple times on the script.
-def curling_not_the_sport(curl_url, toggled_plugins):
-   try:
-      curl_site = requests.get(curl_url, timeout=30, allow_redirects=True)
-      curl_site.raise_for_status()
-      cookies = curl_site.cookies
-      headers = curl_site.headers
-      cookie_jar = cookies.get_dict().keys()
-      return headers, cookie_jar
-   except requests.exceptions.HTTPError as errh:
-       print (f'HTTP error, cURL to {curl_url} failed. Error below \n  {errh}')
-       go_back(toggled_plugins)
-       exit()
-   except requests.exceptions.ConnectionError as errc:
-       print (f'Error connecting, cURL to {curl_url} failed. Error below \n  {errc}')
-       go_back(toggled_plugins)
-       exit()
-   except requests.exceptions.Timeout as errt:
-       print (f'Timeout Error, cURL to {curl_url} failed. Error below \n  {errt}')
-       go_back(toggled_plugins)
-       exit()
-   except requests.exceptions.RequestException as err:
-       print (f'Oops: Something unidentified happened, cURL to {curl_url} failed. Error below \n  {err}')
-       go_back(toggled_plugins)
-       exit()
-
-## - Finding only custom cookies and filtering them if set to exclusion = 'custom', otherwise it will check the # of the cookies, used for sites setting more than 1 cookie at the time.
-def cookie_monster(cookie_jar, exclusion='custom'):
-    if exclusion == 'custom':
-        custom_cookies = []
-        try:
-            cookie_check = cookie_jar
-        except ValueError:
-            print(f'No cookies found.')
-            cookie_check = None
-        exclusion_list = ['PHPSESSID', 'session_start', 'start_session', 'cookie', 'setCookie']
-        for cookie in cookie_check:
-            if cookie not in exclusion_list:
-                custom_cookies.append(cookie)
-        if not custom_cookies:
-            pass
-        else:
-            custom_cookies_filtered = list(filter(None, custom_cookies))
-            print(f'Found custom cookies(s): {", ".join(custom_cookies_filtered)}')
-            return custom_cookies_filtered
-    elif exclusion != 'custom':
-        generic_cookies = []
-        try:
-            cookie_check = cookie_jar
-        except ValueError:
-            print(f'No cookies found.')
-            cookie_check = None
-        inclusion_list = ['PHPSESSID', 'session_start', 'start_session', 'cookie', 'setCookie']
-        for cookie in cookie_check:
-            if cookie in inclusion_list:
-                generic_cookies.append(cookie)
-        generic_cookies_size = len(generic_cookies)
-        return generic_cookies_size
-   
-
-def active_plugins_and_themes(mode):
-    if mode == 'plugins':
-        cmd = 'wp plugin list --status=active --field=name --skip-themes --skip-plugins'
-    else:
-        cmd = 'wp theme list --status=active --field=name --skip-themes --skip-plugins'
-    stdout, stderr  = run_command(cmd)
-    if warning_re.search(stderr) or stdout is None:
-        print(f'Active plugins/themes cannot be listed.')
-        sys.exit()
-    else:
-        return stdout
-
-def file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, mode, active_theme=None):
-    flagged_generic = []
-    flagged_custom = []
-    try:
-        custom_cookies_regex = '|'.join(custom_cookies)
-        custom_cookies_search = re.compile(rf"({custom_cookies_regex})\w?\(?\)?;?")
-    except TypeError:
-        custom_cookies_regex = None
-    generic_search = re.compile(r"\w?(PHPSESSID|session_start|start_session|$cookie|setCookie)\w?\(?\)?;?", re.IGNORECASE)
-    if mode == 'plugins':
-        list_to_check = active_plugins_names.split()
-    else:
-        list_to_check = active_theme.split()
-    for item in list_to_check:
-        if item not in excluded_plugins:
-            if mode == 'plugins':
-                directory_to_check = f'{directory}/wp-content/plugins/{item}'
-            else:
-                directory_to_check = f'{directory}/wp-content/themes/{item}'
-            for root, dirnames, filenames in os.walk(directory_to_check):
-                for php_file in filenames:
-                    if php_file.endswith('.php'):
-                        try:
-                            with open(f'{root}/{php_file}', 'r') as file:
-                                content = file.read()
-                                try:
-                                    if custom_cookies:
-                                        matches_custom = custom_cookies_search.search(content)
-                                        if matches_custom:
-                                            if item in flagged_generic:
-                                                flagged_generic.remove(item)
-                                                flagged_custom.append(item)
-                                                list_to_check.remove(item)
-                                            if item not in flagged_custom and item not in flagged_generic:
-                                                flagged_custom.append(item)
-                                                list_to_check.remove(item)
-                                except Exception:
-                                    pass
-                                matches_generic = generic_search.search(content)
-                                if matches_generic:
-                                    if item not in flagged_generic and item not in flagged_custom:
-                                        flagged_generic.append(item)
-                        except Exception:
-                            break
-    return flagged_generic, flagged_custom
-
-## - Toggle function, will exclude some plugins that might have add-ons and are not know for conflicting with Varnish/NGINX:
-def plugin_toggler(plugin, excluded_plugins, warning_re):
-    if plugin not in excluded_plugins:
-        print(f'Toggling {plugin}.')
-        cmd = f'wp plugin toggle {plugin} --skip-themes --skip-plugins'
-        stdout, stderr = run_command(cmd)
-        try:
-            if warning_re.search(stderr) or stdout is None:
-                print(f'{color.BOLD}There\'s an error after toggling {plugin}. This might be a required plugin by an add-on, you will need to check manually.{color.END}')
-        except Exception:
-            pass
-    
-
-## - Checking headers, # of cookies and re-enabling all plugins if Nginx responds with a HIT:
-
-def after_checker(curl_url, plugin, culprit_plugin, generic_cookies_size_start, toggled_plugins):
-    headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-    generic_cookies_size_after = cookie_monster(cookie_jar, exclusion='generic')
-    if generic_cookies_size_start > generic_cookies_size_after and generic_cookies_size_after >= 1:
-        print(f'{color.BOLD}Number of cookies changed, adding {plugin} to the culprit list{color.END}')
-        culprit_plugin.append(plugin)
-    elif generic_cookies_size_start == generic_cookies_size_after:
-        print(f'There was no change in cookie number: {", ".join(cookie_jar)}. Moving to the next plugin.')
-    elif generic_cookies_size_after == 0:
-        print(f'{color.BOLD}Could not find cookies after disabling {plugin}.{color.END}')
-        culprit_plugin.append(plugin)
-        return True
-
-
+ 
+     
 def main():
-    ## - Skipping plugins? Will need to be added as plugin1,plugin2 - no space with comma.
+    '''
+    Config file to change the script execution.
+    It includes changing the theme to use, the timeout on the curl and the plugins to exclude by default.
+    '''
+    with open('./config.yml', 'r') as file:
+        config = yaml.safe_load(file)
+    excluded_list = config['excluded_list']
+    config_theme = config['theme']
+    timeout = config['curl']['timeout']
+    redirects = config['curl']['follow_redirects']
+    logger_config = config['logger']
+
+
+    '''
+    Initializing all of the script setup and needed variables.
+    '''
+    logging.config.dictConfig(logger_config)
+    logger = logging.getLogger('cookieMonster')
+    logger.info('Cookie check starting...')
     parser =  argparse.ArgumentParser(description='Checking cookies that bypass Varnish/NGINX')
     parser.add_argument('--skip_plugins', help='Adding plugins to exclude. Ex. python3 cookie_monster.py --skip-plugins plugin1,plugin2')
     parser.add_argument('--url_mod', help='Specify the URL to cURL if anything other than the homepage is required. Ex. python3 cookie_monster.py --url_mod /new/url.')
     args = parser.parse_args()
     skip_plugins = args.skip_plugins
     url_mod = args.url_mod
-    toggled_plugins = []
-    ## - Getting domain name and paths for later use.
-    directory = os.getcwd()
-    directory_is = directory.split('/')
-    directory_is_filtered = list(filter(None, directory_is))
-    directory = folder_check(directory_is_filtered)
-    curl_url = get_url(warning_re, directory_is, url_mod)
-    print(f'Inspecting cookies at: {curl_url}')
-    headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
+    warning_re = re.compile(r'\w?(Error|Warning:)\w?\(?\)?;?', re.IGNORECASE)
 
-    ## - Investigating the headers info:
+    '''
+    Getting site details and creating a dictionary with the information.
+
+    '''
+    site = Site(warning_re)
+    site.get_wordpress_info(url_mod)
+    directory = site.folder_check()
+    wordpress_info = site.wordpress_info
+    logger.info(f'Site URL loaded as: {wordpress_info["site_url"]}')
+    print(f'Inspecting cookies at: {wordpress_info["site_url"]}')
+    curl_url = wordpress_info['site_url']
+    plugins_info, themes_info = site.active_plugins_and_themes()
+    monster = CookieMonster(warning_re)
+    toggled_plugins = []
+    culprit_plugin = []
+   
+    '''
+    Inspect the headers early and exit if it is not needed to cURL the site.
+    Only if it finds cookies the script will continue.
+    '''
+    monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
     try:
-        headers['Cache-Control']
-        print(f'Cache-Control found. Review the headers: {headers["Cache-Control"]}')
+        monster.headers['Cache-Control']
+        print(f'Cache-Control found. Review the headers: {monster.headers["Cache-Control"]}')
     except KeyError:
         print('Cache-Control is not found.')
     try:
-        headers['Set-Cookie']
-        if cookie_jar:
-           cookies = ', '.join(cookie_jar)
+        monster.headers['Set-Cookie']
+        if monster.cookie_jar:
+           cookies = ', '.join(monster.cookie_jar)
            print(f'Cookies found: {cookies}')
+           logger.info(f'Cookies found at first cURL: {", ".join(monster.cookie_jar)}')
     except KeyError:
         print('No cookies found. Why are you running this?\nNginx should cache this site, bye!')
+        logger.info(f'There were no cookies found: {monster.headers}')
         sys.exit() 
-
-    if skip_plugins:
-        skip_plugins_list = skip_plugins.split(',')
-        print(f'Plugins to skip: {", ".join(skip_plugins_list)}')
-
-    ## - Not needed to check ALL plugins:
-    excluded_plugins = ['woocommerce', 'elementor', 'nginx-helper', 'dreamhost-panel-login', 'redis-cache'] ## - This list can be expanded.
-    print(f'Plugins excluded by default: {", ".join(excluded_plugins)}')
-    if not skip_plugins: # - Check if user wants to exclude anything else.
-        pass
-    else:
-        for plugin in skip_plugins_list:
-            excluded_plugins.append(plugin)
-
-    custom_cookies = cookie_monster(cookie_jar, exclusion='custom')
-#    generic_cookies_size = cookie_monster(cookie_jar, exclusion='generic')
-    active_plugins_names = active_plugins_and_themes('plugins')
-    flagged_plugins, flagged_plugins_custom = file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, 'plugins')
-    active_theme = active_plugins_and_themes('themes')
-    flagged_theme_generic, flagged_theme_custom = file_searcher(active_plugins_names, excluded_plugins, directory, custom_cookies, 'theme', active_theme)
-
-    ## - Based on the PHP results it will show only what we need:
-    flagged_both = flagged_plugins + flagged_plugins_custom
-    flagged_both_theme = flagged_theme_generic, flagged_theme_custom
-    if flagged_both:
-        print(f'{color.BOLD}Flagged plugins: {", ".join(flagged_both)}{color.END}')
-    if flagged_theme_generic is not None or flagged_theme_custom is not None:
-        flagged_theme_strings = [item for sublist in flagged_both_theme for item in sublist if item]
-        print(f'{color.BOLD}Flagged theme: {", ".join(flagged_theme_strings)}{color.END}.')
-
-    toggled_plugins = []
-    culprit_plugin = []
-    # - Toggling plugins with custom cookies first.
-    if flagged_plugins_custom:
+    custom_cookies = monster.cookie_monster('custom')
+    
+    '''
+    Print excluded plugins, can be expanded via --skip_plugins and config.yml.
+    Searching on all of the active plugins/theme files for info on the generic and custom cookies.
+    Returns the raw dictionary and the names of the plugins/theme. The function removes any plugin that was not flagged to speed up the process moving forward.
+    '''
+    excluded_plugins = excluded_print(skip_plugins, excluded_list)
+    plugins_info, flagged_custom, flagged_generic = file_searcher(plugins_info, excluded_plugins, directory, custom_cookies)
+    themes_info, flagged_theme_custom, flagged_theme_generic = file_searcher(themes_info, excluded_plugins, directory, custom_cookies)
+    if flagged_generic or flagged_custom:
+        print(f'{color.BOLD}Flagged plugins: {", ".join(flagged_custom + flagged_generic)}{color.END}')
+        logger.info(f'Flagged plugins: {plugins_info}')
+    if flagged_theme_custom or flagged_theme_generic:
+        active_theme = themes_info[0]['name']
+        print(f'{color.BOLD}Flagged theme: {active_theme}{color.END}')
+        logger.info(f'Flagged themes: {themes_info}')
+    
+    '''
+    "Custom" cookies are flagged first since they are easier to find. The name of the cookie will be on the plugin/theme files and we can get rid of it easier.
+    Plugins are immediately added to the culprit list.
+    '''
+    if flagged_custom:
         print('Plugins with custom cookies will be toggled, we\'ve already identified that they conflict with Varnish/NGINX')
-        for plugin in flagged_plugins_custom:
-            plugin_toggler(plugin, excluded_plugins, warning_re)
+        logger.info('Toggling plugins with custom cookies:')
+        for plugin in flagged_custom:
+            monster.plugin_toggler(plugin, excluded_plugins)
+            logger.info(f'Toggled plugin: {plugin}')
             toggled_plugins.append(plugin)
-            culprit_plugin.append(plugin)
+            culprit_plugin.append(plugin)      
 
-    # - Toggling plugins with generic cookies second.
-    headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-    generic_cookies_size = cookie_monster(cookie_jar, exclusion='generic')
-    if flagged_plugins and generic_cookies_size != 0:
+    '''
+    After toggling the custom cookies we fire up a new cURL, if there are generic cookies and something was flagged plugins are toggled one by one.
+    
+    '''
+    monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
+    generic_cookies_size = monster.cookie_monster('generic')
+    if flagged_generic and generic_cookies_size != 0:
         print('Checking for the generic cookies.')
-        for plugin in flagged_plugins:
+        logger.info('Checking for the generic cookies.')
+        for plugin in flagged_generic:
             try:
-                headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-                generic_cookies_size_start = cookie_monster(cookie_jar, exclusion='generic')
+                monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
+                generic_cookies_size_start = monster.cookie_monster(exclusion='generic')
+                logger.info(f'Checking: {plugin} - # of cookies:{generic_cookies_size_start}')
             except KeyError:
                 pass
-            plugin_toggler(plugin, excluded_plugins, warning_re)
+            monster.plugin_toggler(plugin, excluded_plugins)
+            logger.info(f'Toggled plugin: {plugin}')
             toggled_plugins.append(plugin)
             if generic_cookies_size_start != 0:
-                after_generic = after_checker(curl_url, plugin, culprit_plugin, generic_cookies_size_start, toggled_plugins)
+                after_generic = after_checker(monster, curl_url, plugin, culprit_plugin, generic_cookies_size_start, toggled_plugins, timeout, redirects)
                 if after_generic == True:
                     break
-    
-    generic_cookies_size = cookie_monster(cookie_jar, exclusion='generic')
+
+    '''
+    Lastly, if a theme was flagged it is checked for both type of cookies.
+    Anecdotally, it feels like themes are not often a problem, which is why it is on the last part of the process.
+    The theme to be installed is set on the config.yml, I often use the current default WordPress theme, eg. twentytwentyfour. 
+    '''
+    generic_cookies_size = monster.cookie_monster('generic')
     if flagged_theme_generic and generic_cookies_size != 0:
-        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-        generic_cookies_size_start = cookie_monster(cookie_jar, exclusion='generic')
+        monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
+        generic_cookies_size_start = monster.cookie_monster('generic')
+        logger.info('Checking for the generic cookies on the theme.')
         print('\nSwitching to a default theme:')
-        run_command('wp theme install twentytwentyfour --skip-themes --skip-plugins')
-        run_command('wp theme activate twentytwentyfour --skip-themes --skip-plugins')
-        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-        generic_cookies_size_after = cookie_monster(cookie_jar, exclusion='generic')
+        run_command(f'wp theme install {config_theme} --skip-themes --skip-plugins')
+        run_command(f'wp theme activate {config_theme} --skip-themes --skip-plugins')
+        logger.info(f'Setting up {config_theme}.')
+        monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
+        generic_cookies_size_after = monster.cookie_monster('generic')
         if generic_cookies_size_start > generic_cookies_size_after and generic_cookies_size_after >= 1:
             print(f'{color.BOLD}Number of cookies changed, adding {active_theme} to the culprit list{color.END}')
+            logger.info(f'# of cookies after theme change: {generic_cookies_size_after}.')
             culprit_plugin.append(active_theme)
             run_command(f'wp theme activate {active_theme}')
         elif generic_cookies_size_after == 0:
             print(f'{color.BOLD}Could not find cookies after disabling {active_theme}.{color.END}')
+            logger.info(f'# of cookies after theme change: {generic_cookies_size_after}.')
             culprit_plugin.append(active_theme)
             run_command(f'wp theme activate {active_theme}')
     elif flagged_theme_custom:
         print('\nSwitching to a default theme:')
-        run_command('wp theme install twentytwentyfour --skip-themes --skip-plugins')
-        run_command('wp theme activate twentytwentyfour --skip-themes --skip-plugins')
-        headers, cookie_jar = curling_not_the_sport(curl_url, toggled_plugins)
-        if not cookie_jar:
+        run_command(f'wp theme install {config_theme} --skip-themes --skip-plugins')
+        run_command(f'wp theme activate {config_theme} --skip-themes --skip-plugins')
+        logger.info(f'Setting up {config_theme}.')
+        monster.curling_not_the_sport(curl_url, toggled_plugins, timeout, redirects)
+        if not monster.cookie_jar:
             culprit_plugin.append(active_theme)
             run_command(f'wp theme activate {active_theme}')
             print(f'{color.BOLD}Could not find cookies after disabling {active_theme}.{color.END}')
+            logger.info(f'# of cookies after theme change: {generic_cookies_size_after}.')
 
-
-    ## - Last step, going back if nothing has been found.
+    '''
+    Last step, leave the site as we found it.
+    '''
     print('\nRe-enabling all plugins after checks.')
 
     for plugin in toggled_plugins:
-        plugin_toggler(plugin, excluded_plugins, warning_re)
+        monster.plugin_toggler(plugin, excluded_plugins)
 
     if not culprit_plugin:
         print(f'{color.BOLD}Could not find anything. Have you checked must-use plugins?{color.END}')   
     else:
         print(f'{color.BOLD}Plugin(s)/Theme bypassing cache: {", ".join(culprit_plugin)}.{color.END}')
 
+
 if __name__ == '__main__':
    main()
-   
