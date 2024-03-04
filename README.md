@@ -21,14 +21,33 @@ You should still know the “normal” process/logic to testing the cache, this 
 
 -Run: python3 cookie_monster/cookie_monster.py
 
+or
+
+-Run: python3 cookie_monster/cookie_monster.py --url_mod /test (Testing specific pages).
+
 ### Possible issues:
 
--The script disables a required plugin for an add-on and breaks. Ex. plugin_1 is required by plugin_2 to work, the script toggles plugin_1.
+-The script disables a required plugin for an add-on and breaks. Ex. plugin_1 is required by plugin_2 to work, the script toggles plugin_1. You can exclude plugins using --skip_plugins flag or expanding the config.yml excluded_list with the proper syntax.
+```
+from:
+['woocommerce', 'elementor', 'nginx-helper', 'dreamhost-panel-login', 'redis-cache']
+to:
+['woocommerce', 'elementor', 'nginx-helper', 'dreamhost-panel-login', 'redis-cache', 'added_plugin']
+```
 
--Cookie Monster says there are no cookies but your cURL shows them. This is a problem with redirects (I think), some sites will show cookies on 301 redirects but not on the final hop, why? I have no idea.
--The site takes longer than 1 minutes to load. 
+-Cookie Monster says there are no cookies but your cURL shows them. This is a problem with redirects (I think), some sites will show cookies on 301 redirects but not on the final hop, why? I have no idea. Try setting the follow_redirects parameter on the config.yml to False.
+```
+curl:
+    timeout: 30
+    follow_redirects: False
+```
 
--The script cURL has a timeout of 60 seconds, it can be increased on the function curling_not_the_sport.
+-The site takes longer than 1 minutes to load. Increase the timeout on the config.yml:
+```
+curl:
+    timeout: 90
+    follow_redirects: True
+```
 
 -Site is not public or behind HTTPauth.
 
@@ -80,3 +99,6 @@ Could not find cookies after disabling sitepress-multilingual-cms. Varnish repor
 Enabling plugins after checks.
 Toggling sitepress-multilingual-cms.
 Plugin(s) bypassing cache: sitepress-multilingual-cms.
+```
+
+Any issues? Check the logs on the ./src folder. cookieCrumbs.log is informational, monster-debug.log will contain a more verbose log.
