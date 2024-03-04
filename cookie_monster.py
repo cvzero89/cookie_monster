@@ -5,6 +5,7 @@ import logging.config
 import logging
 from src.CookieDough import CookieMonster, color, Site, after_checker, run_command, file_searcher, excluded_print
 import sys
+import os
 
 print("""              .---. .---. 
              :     : o   :    me want cookie!
@@ -29,8 +30,10 @@ def main():
     Config file to change the script execution.
     It includes changing the theme to use, the timeout on the curl and the plugins to exclude by default.
     '''
-    with open('./config.yml', 'r') as file:
-        config = yaml.safe_load(file)
+    script_path = os.path.abspath(os.path.dirname(__file__))
+    os.chdir(script_path)
+    with open(f'{script_path}/config.yml', 'r') as file:
+            config = yaml.safe_load(file)
     excluded_list = config['excluded_list']
     config_theme = config['theme']
     timeout = config['curl']['timeout']
